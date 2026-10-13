@@ -27,29 +27,98 @@ ARQUIVO_METRICAS = SAIDAS / "metricas.jsonl"
 
 
 def medido(nome: str, no):
-    # ETAPA 10.2 -- devolva uma função que:
-    #   1. mede o tempo de no(estado) com time.perf_counter();
-    #   2. grava em ARQUIVO_METRICAS uma linha JSON com: thread_id (estado.get("thread_id")), no, segundos,
-    #      e, se o nó devolveu, "tokens" e "fonte_feriados";
-    #   3. devolve o MESMO dicionário que o nó devolveu.
-    #   Use @functools.wraps(no) para o nome do nó continuar o mesmo.
-    return no  # pass-through: troque pelo wrapper
+    @functools.wraps(no)
+    def wrapper(estado):
+        inicio = time.perf_counter()
+
+        resultado = no(estado)
+
+        duracao = time.perf_counter() - inicio
+
+        registro = {
+            "thread_id": estado.get("thread_id"),
+            "no": nome,
+            "segundos": round(duracao, 4),
+            "tokens": resultado.get("_tokens", 0)
+        }
+
+        if isinstance(resultado, dict):
+            if "tokens" in resultado:
+                registro["tokens"] = resultado["tokens"]
+
+            if "fonte_feriados" in resultado:
+                registro["fonte_feriados"] = resultado["fonte_feriados"]
+
+            if "cambio_api" in resultado:
+                registro["cambio_api"] = resultado["cambio_api"]
+
+        ARQUIVO_METRICAS.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(ARQUIVO_METRICAS, "a", encoding="utf-8") as fp:
+            fp.write(
+                json.dumps(registro, ensure_ascii=False)
+                + "\n"
+            )
+
+        return resultado
+
+    return wrapper
 
 
 def resumo(thread_id: str) -> dict:
     """(PRONTO) Junta as linhas de ARQUIVO_METRICAS de uma execução. Só funciona depois que o medido() (10.2) grava."""
+
     if not ARQUIVO_METRICAS.exists():
-        return {"erro": "saidas/metricas.jsonl ainda não existe: faça a ETAPA 10.2 e rode o grafo"}
-    linhas = [json.loads(l) for l in ARQUIVO_METRICAS.read_text(encoding="utf-8").splitlines() if l.strip()]
-    linhas = [l for l in linhas if l.get("thread_id") == thread_id]
+        return {
+            "erro": "saidas/metricas.jsonl ainda não existe: faça a ETAPA 10.2 e rode o grafo"
+        }
+
+    linhas = [
+        json.loads(l)
+        for l in ARQUIVO_METRICAS.read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if l.strip()
+    ]
+
+    linhas = [
+        l
+        for l in linhas
+        if l.get("thread_id") == thread_id
+    ]
+
     if not linhas:
-        return {"erro": f"nenhuma métrica com thread_id={thread_id!r}"}
-    lento = max(linhas, key=lambda l: l.get("segundos", 0))
-    return {"nos": [l.get("no") for l in linhas],
-            "segundos_total": round(sum(l.get("segundos", 0) for l in linhas), 2),
-            "mais_lento": (lento.get("no"), lento.get("segundos")),
-            "tokens_total": sum(l.get("tokens", 0) or 0 for l in linhas)}
+        return {
+            "erro": f"nenhuma métrica com thread_id={thread_id!r}"
+        }
+
+    lento = max(
+        linhas,
+        key=lambda l: l.get("segundos", 0)
+    )
+
+    return {
+        "nos": [l.get("no") for l in linhas],
+        "segundos_total": round(
+            sum(l.get("segundos", 0) for l in linhas),
+            2,
+        ),
+        "mais_lento": (
+            lento.get("no"),
+            lento.get("segundos"),
+        ),
+        "tokens_total": sum(
+            l.get("tokens", 0) or 0
+            for l in linhas
+        ),
+    }
 
 
 if __name__ == "__main__":
-    print(json.dumps(resumo(sys.argv[1]), ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            resumo(sys.argv[1]),
+            ensure_ascii=False,
+            indent=2,
+        )
+    )

@@ -106,13 +106,29 @@ class Estado(TypedDict, total=False):
     aprovador: str
     protocolo: str
     resultado: str                # o desfecho, para a tabela da Etapa 11
+    _tokens: Annotated[int, operator.add]
     caminho: Annotated[list[str], operator.add]   # cada nó só ACRESCENTA o próprio nome
 
+def obter_tokens(resultado) -> int:
+    """
+    Extrai os tokens consumidos por um RunResult do Agents SDK.
+    """
+    try:
+        return resultado.context_wrapper.usage.total_tokens
+    except Exception:
+        pass
+
+    try:
+        return resultado.usage.total_tokens
+    except Exception:
+        pass
+
+    return 0
 
 # ------------------------------------------------------------------ nós PRONTOS
 def receber(estado: Estado) -> dict:
     return {"texto": estado["texto"].strip(), "tentativas": 0, "rejeicoes": 0, "violacoes": [],
-            "erro_validacao": "", "feedback_chefia": "", "caminho": ["receber"]}
+            "erro_validacao": "", "feedback_chefia": "", "_tokens": 0, "caminho": ["receber"]}
 
 
 def recusar(estado: Estado) -> dict:
@@ -255,26 +271,59 @@ def no_normas(estado: Estado) -> dict:
     #   {"parecer_normas": ..., "caminho": ["normas"]}. Os três especialistas rodam no MESMO passo.
     #   Referência: aula7/exemplos/08_paralelismo/main.py (cada ramo escreve no SEU campo)
     agente = agentes.criar_normas()
-    res = rodar_com_limites_sync(agente, _fatos(estado))
-    return {"parecer_normas": res.final_output, "caminho": ["normas"]}
+
+    res = rodar_com_limites_sync(
+        agente,
+        _fatos(estado)
+    )
+
+    return {
+        "parecer_normas": res.final_output,
+        "_tokens": obter_tokens(res),
+        "caminho": ["normas"]
+    }
 
 
 def no_escala(estado: Estado) -> dict:
     # ETAPA 7.3 -- idem, agentes.criar_escala() -> {"parecer_escala": ..., "caminho": ["escala"]}
     agente = agentes.criar_escala()
-    res = rodar_com_limites_sync(agente, _fatos(estado))
-    return {"parecer_escala": res.final_output, "caminho": ["escala"]}
+
+    res = rodar_com_limites_sync(
+        agente,
+        _fatos(estado)
+    )
+
+    return {
+        "parecer_escala": res.final_output,
+        "_tokens": obter_tokens(res),
+        "caminho": ["escala"]
+    }
 
 
 def no_financeiro(estado: Estado) -> dict:
     # ETAPA 7.3 -- idem, agentes.criar_financeiro() -> {"parecer_financeiro": ..., "caminho": ["financeiro"]}
     #   (abono não tem valor: devolva "não se aplica" sem chamar o LLM -- economiza tokens)
     pedido = estado.get("pedido", {})
+
     if pedido.get("tipo") == "abono":
-        return {"parecer_financeiro": "Não se aplica a abonos.", "caminho": ["financeiro"]}
+        return {
+            "parecer_financeiro": "Não se aplica a abonos.",
+            "_tokens": 0,
+            "caminho": ["financeiro"]
+        }
+
     agente = agentes.criar_financeiro()
-    res = rodar_com_limites_sync(agente, _fatos(estado))
-    return {"parecer_financeiro": res.final_output, "caminho": ["financeiro"]}
+
+    res = rodar_com_limites_sync(
+        agente,
+        _fatos(estado)
+    )
+
+    return {
+        "parecer_financeiro": res.final_output,
+        "_tokens": obter_tokens(res),
+        "caminho": ["financeiro"]
+    }
 
 
 def consolidar(estado: Estado) -> dict:
@@ -306,9 +355,19 @@ def redigir_despacho(estado: Estado) -> dict:
         f"ERRO VALIDAÇÃO ANTERIOR: {estado.get('erro_validacao')}\n"
         f"FEEDBACK CHEFIA: {estado.get('feedback_chefia')}"
     )
+
     agente = agentes.criar_redator()
-    res = rodar_com_limites_sync(agente, fatos)
-    return {"despacho": res.final_output, "caminho": ["redigir_despacho"]}
+
+    res = rodar_com_limites_sync(
+        agente,
+        fatos
+    )
+
+    return {
+        "despacho": res.final_output,
+        "_tokens": obter_tokens(res),
+        "caminho": ["redigir_despacho"]
+    }
 
 
 def problemas_do_despacho(despacho: str, pedido: dict) -> list[str]:
