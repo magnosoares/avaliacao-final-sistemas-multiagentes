@@ -573,21 +573,41 @@ def retomar(app, thread_id: str, resposta: str, quem: str) -> None:
     #   saida = app.invoke(Command(resume=valor), config_de(thread_id)); mostrar(app, thread_id, saida)
     #   Nada pausado? Diga isso e não faça nada (e se retomarem duas vezes?).
     #   Referência: aula7/exemplos/06_human_in_the_loop/main.py (retomar)
-    raise NotImplementedError("ETAPA 8.4: retomar")
+    estado_atual = app.get_state(config_de(thread_id))
+    proximo = estado_atual.next
+    if not proximo:
+        print(f"[{thread_id}] nada pausado")
+        return
+        
+    no_atual = proximo[0]
+    if no_atual == "aprovacao_chefia":
+        aprovado = resposta.lower() == "sim"
+        motivo = ""
+        if not aprovado and ":" in resposta:
+            _, motivo = resposta.split(":", 1)
+        valor = {"aprovado": aprovado, "aprovador": quem, "motivo": motivo.strip()}
+    else:
+        valor = {"resposta": resposta}
+        
+    saida = app.invoke(Command(resume=valor), config_de(thread_id))
+    mostrar(app, thread_id, saida)
 
 
 def main() -> None:
     args = [a for a in sys.argv[1:] if a != "--sem-guardrail"]
-    # ETAPA 8.1 -- o checkpointer SQLite: é ele que deixa a execução pausada sobreviver ao fim do processo.
-    args = [a for a in sys.argv[1:] if a != "--sem-guardrail"]
-    app = construir()
-    if not args or args[0] == "--mermaid":
-        print(app.get_graph().draw_mermaid())
-    elif args[0] == "--todos":
-        for nome, caso in CASOS.items():
-            executar(app, nome, caso["pedido"])
-    else:
-        executar(app, args[0], CASOS[args[0]]["pedido"])
+    with SqliteSaver.from_conn_string(str(SAIDAS / "checkpoints.db")) as checkpointer:
+        app = construir(checkpointer)
+        if not args or args[0] == "--mermaid":
+            print(app.get_graph().draw_mermaid())
+        elif args[0] == "--pendentes":
+            listar_pendentes(app, checkpointer)
+        elif args[0] == "--retomar":
+            retomar(app, args[1], args[2], args[3] if len(args) > 3 else "?")
+        elif args[0] == "--todos":
+            for nome, caso in CASOS.items():
+                executar(app, nome, caso["pedido"])
+        else:
+            executar(app, args[0], CASOS[args[0]]["pedido"])
 
 
 if __name__ == "__main__":
