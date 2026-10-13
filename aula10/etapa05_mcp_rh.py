@@ -201,7 +201,21 @@ def _auditar(protocolo: str, decisao_acesso: str, motivo: str, parametros: dict)
     #   motivo e os parâmetros (SEM o token e SEM o despacho inteiro).
     #   Referência: aula5/exemplos/10_seguranca/server_seguro.py (_registrar_auditoria), aqui em JSON Lines.
     #   Até fazer a 9.3, este pass deixa a escrita funcionar sem auditoria.
-    pass
+    """ETAPA 9.3 -- Grava uma linha de auditoria (ALLOW ou DENY) em formato JSON Lines."""
+    linha = {
+        "quando": datetime.now().isoformat(),
+        "thread_id": parametros.get("thread_id", ""),
+        "quem": parametros.get("aprovador", "sistema"),
+        "tool": "registrar_decisao",
+        "protocolo": protocolo,
+        "decisao_acesso": decisao_acesso,
+        "motivo": motivo,
+        "parametros": {
+            k: v for k, v in parametros.items() if k not in ("token", "despacho")
+        }
+    }
+    with open(ARQUIVO_AUDITORIA, "a", encoding="utf-8") as f:
+        f.write(json.dumps(linha, ensure_ascii=False) + "\n")
 
 
 @mcp.tool()
@@ -238,17 +252,17 @@ def registrar_decisao(protocolo: str, matricula: str, tipo: str, inicio: str, fi
     # ------------------------------------------------------------------
     # ETAPA 9.2 (Segurança / Autorização no Server - Para implementar depois)
     # ------------------------------------------------------------------
-    # if not token or token != TOKEN_REGISTRO:
-    #     _auditar(protocolo, "DENY", "token inválido", parametros)
-    #     return {"sucesso": False, "erro": "token inválido"}
-    # 
-    # if decisao not in DECISOES_VALIDAS:
-    #     _auditar(protocolo, "DENY", "decisão inválida", parametros)
-    #     return {"sucesso": False, "erro": "decisão inválida"}
-    # 
-    # if aprovador == matricula:
-    #     _auditar(protocolo, "DENY", "autoaprovação (N8)", parametros)
-    #     return {"sucesso": False, "erro": "autoaprovação (N8)"}
+    if not token or token != TOKEN_REGISTRO:
+        _auditar(protocolo, "DENY", "token inválido", parametros)
+        return {"sucesso": False, "erro": "token inválido"}
+    
+    if decisao not in DECISOES_VALIDAS:
+        _auditar(protocolo, "DENY", "decisão inválida", parametros)
+        return {"sucesso": False, "erro": "decisão inválida"}
+    
+    if aprovador == matricula:
+        _auditar(protocolo, "DENY", "autoaprovação (N8)", parametros)
+        return {"sucesso": False, "erro": "autoaprovação (N8)"}
 
     # ------------------------------------------------------------------
     # ETAPA 5.2: Idempotência de Gravação
@@ -257,7 +271,7 @@ def registrar_decisao(protocolo: str, matricula: str, tipo: str, inicio: str, fi
 
     if protocolo in registros:
         # Protocolo já existe: não duplica, apenas avisa que já foi gravado
-        # _auditar(protocolo, "ALLOW", "duplicado", parametros) # (Usado na Etapa 9.3)
+        _auditar(protocolo, "ALLOW", "duplicado", parametros) # (Usado na Etapa 9.3)
         return {
             "sucesso": True, 
             "duplicado": True, 
@@ -274,7 +288,7 @@ def registrar_decisao(protocolo: str, matricula: str, tipo: str, inicio: str, fi
     registros[protocolo] = registro_novo
     _gravar_registros(registros)
 
-    # _auditar(protocolo, "ALLOW", "gravado", parametros) # (Usado na Etapa 9.3)
+    _auditar(protocolo, "ALLOW", "gravado", parametros) # (Usado na Etapa 9.3)
     
     return {
         "sucesso": True, 

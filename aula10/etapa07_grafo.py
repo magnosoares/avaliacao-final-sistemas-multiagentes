@@ -414,6 +414,9 @@ def registrar(estado: Estado) -> dict:
     pedido = estado.get("pedido", {})
     despacho = estado.get("despacho", "")
     
+    # ------------------------------------------------------------------
+    # ETAPA 9.4: Guardrail de Saída (N10 - sem CPF ou CID no despacho)
+    # ------------------------------------------------------------------
     if GUARDRAIL_LIGADO and encontrar_dado_sensivel(despacho):
         return {"resultado": "bloqueado_na_saida", "caminho": ["registrar"]}
         
@@ -430,7 +433,6 @@ def registrar(estado: Estado) -> dict:
         
     aprovador = estado.get("aprovador") or "sistema"
     if estado.get("feedback_chefia") == "" and aprovador == "sistema":
-        # Se exigia chefia e foi aprovado, mas o aprovador não veio preenchido, usa a chefia cadastrada
         aprovador = estado.get("servidor", {}).get("chefia", "sistema")
 
     payload = {
