@@ -1,0 +1,81 @@
+# Ambiente virtual
+.venv/
+venv/
+env/
+
+# Segredos / configuração local (o .env.example é o modelo e vai no commit)
+.env
+.env.*
+!.env.example
+
+# Cache e artefatos de execução do Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Arquivos gerados ao rodar os exemplos (ex.: exemplos/10_seguranca/auditoria.log)
+*.log
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker — overrides locais de cada máquina
+docker-compose.override.yml
+compose.override.yml
+
+# Claude Code — estado local
+.claude/settings.local.json
+.claude/*.lock
+
+# IDEs / editores
+.vscode/
+.idea/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Log gerado pelo Exemplo 03/04 (SQL executado)
+sql_executado.log
+
+# Material do professor e desafios: fora do repositório dos alunos
+aula5/aula-05.md
+aula5/exemplos/09_agente_complexo/desafio_extra_limite_capacidade.py
+aula5/desafio_final/
+
+# Aula 6: roteiro do professor e solução do desafio (enunciado, esqueleto e testes vão para os alunos)
+aula6/PROFESSOR.md
+aula6/desafio/solucao/
+aula6/desafio2/solucao/
+
+# Aula 7: roteiro do professor e solução do desafio (enunciado, esqueleto, Mock e testes vão para os alunos)
+aula7/PROFESSOR.md
+aula7/desafio/solucao/
+
+aula7/desafio2/solucao/
+
+aula7/gabaritos/
+
+# Aula 7: os exemplos são esqueletos para implementar ao vivo; a versão pronta de cada um fica só com o professor
+aula7/exemplos/*/solucao/
+
+# Aula 6: exercicio guiado (solucao do professor e arquivos gerados)
+aula6/exercicio_guiado/solucao/
+aula6/exercicio_guiado/saida/
+
+aula6/desafio/saida/
+
+aula6/desafio2/saida/
+
+# Aula 6: demonstracao do cofre (solucao do professor e arquivos gerados)
+aula6/demo_cofre/solucao/
+aula6/demo_cofre/saida/
+
+# Aula 6: desafio 3 (JEV): solucao do professor e arquivos gerados
+aula6/desafio3/solucao/
+aula6/desafio3/saida/
