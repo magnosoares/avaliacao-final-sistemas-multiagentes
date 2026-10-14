@@ -630,7 +630,24 @@ def retomar(app, thread_id: str, resposta: str, quem: str) -> None:
     #   saida = app.invoke(Command(resume=valor), config_de(thread_id)); mostrar(app, thread_id, saida)
     #   Nada pausado? Diga isso e não faça nada (e se retomarem duas vezes?).
     #   Referência: aula7/exemplos/06_human_in_the_loop/main.py (retomar)
-    raise NotImplementedError("ETAPA 8.4: retomar")
+    estado_atual = app.get_state(config_de(thread_id))
+    proximo = estado_atual.next
+    if not proximo:
+        print(f"[{thread_id}] nada pausado")
+        return
+        
+    no_atual = proximo[0]
+    if no_atual == "aprovacao_chefia":
+        aprovado = resposta.lower() == "sim"
+        motivo = ""
+        if not aprovado and ":" in resposta:
+            _, motivo = resposta.split(":", 1)
+        valor = {"aprovado": aprovado, "aprovador": quem, "motivo": motivo.strip()}
+    else:
+        valor = {"resposta": resposta}
+        
+    saida = app.invoke(Command(resume=valor), config_de(thread_id))
+    mostrar(app, thread_id, saida)
 
 
 def main() -> None:
