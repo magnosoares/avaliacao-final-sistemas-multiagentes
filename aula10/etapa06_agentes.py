@@ -88,6 +88,72 @@ def criar_redator() -> Agent:
     #   Nunca escreve CPF nem dado de saúde (N10). Se receber um feedback (da validação ou da chefia), corrige.
     raise NotImplementedError("ETAPA 6.1: criar_redator")
 
+def criar_normas() -> Agent:
+    # ETAPA 6.1 -- Agent(name="Normas", instructions=..., tools=[consultar_normas], model_settings=CONFIG)
+    #   Responsabilidade: dizer QUAIS regras se aplicam ao pedido e explicá-las em linguagem simples.
+    #   NÃO calcula valores, NÃO consulta a escala. Recebe também as violações objetivas (etapa06_regras.py) para explicá-las.
+    return Agent(
+        name="Normas",
+        instructions=(
+            "Você é o especialista em Normas de RH. Sua responsabilidade é analisar o pedido "
+            "do servidor à luz das regras internas (normas.md), indicando quais regras se aplicam "
+            "e explicando-as em linguagem simples. Use a ferramenta `consultar_normas` para buscar o tema "
+            "necessário. Leve em conta também as violações objetivas informadas."
+        ),
+        tools=[consultar_normas],
+        model_settings=CONFIG
+    )
+
+
+def criar_escala() -> Agent:
+    # ETAPA 6.1 -- tools=[consultar_escala]. Confere a N5 e, se houver conflito, SUGERE outro período
+    #   (com o mesmo número de dias, começando num dia permitido).
+    return Agent(
+        name="Escala",
+        instructions=(
+            "Você é o especialista em Escala. Sua responsabilidade é conferir a regra N5 de afastamentos "
+            "da equipe usando a ferramenta `consultar_escala`. Se houver conflito de escala (limite excedido), "
+            "sugira obrigatoriamente um período alternativo viável (com o mesmo número de dias, em datas permitidas)."
+        ),
+        tools=[consultar_escala],
+        model_settings=CONFIG
+    )
+
+
+def criar_financeiro() -> Agent:
+    # ETAPA 6.1 -- tools=[tabela_diarias, consultar_remuneracao, cotacao_dolar].
+    #   Venda de férias (N2): dias_vendidos x salario_base / 30. Diárias (N7): uma por pernoite + meia no retorno;
+    #   no exterior, em USD convertido pela cotação. Mostre a conta. Câmbio indisponível -> "a calcular".
+    #   É o ÚNICO agente que vê o salário.
+    return Agent(
+        name="Financeiro",
+        instructions=(
+            "Você é o especialista Financeiro. É o ÚNICO agente autorizado a consultar salários. "
+            "Para férias com venda (N2), calcule o valor usando: (dias_vendidos * salario_base) / 30, consultando "
+            "a remuneração via `consultar_remuneracao`. Para diárias (N7), consulte `tabela_diarias` e a `cotacao_dolar` "
+            "se o destino for exterior. Mostre a memória de cálculo detalhada. Se o câmbio falhar, escreva 'a calcular'."
+        ),
+        tools=[tabela_diarias, consultar_remuneracao, cotacao_dolar],
+        model_settings=CONFIG
+    )
+
+
+def criar_redator() -> Agent:
+    # ETAPA 6.1 -- sem tools. Escreve o DESPACHO (deferimento ou indeferimento) usando SÓ os fatos recebidos:
+    #   matrícula, período, decisão, regras citadas, valores e, no indeferimento, a sugestão de datas.
+    #   Nunca escreve CPF nem dado de saúde (N10). Se receber um feedback (da validação ou da chefia), corrige.
+    return Agent(
+        name="Redator",
+        instructions=(
+            "Você é o redator oficial do RH. Escreva o despacho final (deferimento ou indeferimento) "
+            "usando EXCLUSIVAMENTE os fatos recebidos: matrícula, período, decisão, regras citadas, valores "
+            "e, se for indeferido, a sugestão de datas alternativa. "
+            "REGRA ABSOLUTA (N10): NUNCA inclua CPF, dados de saúde ou informações sensíveis no despacho."
+        ),
+        tools=[],
+        model_settings=CONFIG
+    )
+
 
 # ------------------------------------------------------------------ ETAPA 6.2: coordenador
 def criar_coordenador(hooks: RunHooks | None = None, tools_extras: list | None = None) -> Agent:
@@ -103,4 +169,37 @@ def criar_coordenador(hooks: RunHooks | None = None, tools_extras: list | None =
     #   um texto de erro para o Coordenador, que segue em frente. Com None, o erro interrompe a execução.
     #   tools_extras serve só para o teste do 🆕 B (dar de propósito consultar_remuneracao ao Coordenador).
     #   Referência: aula4/ex03_agente_as_tool.py
-    raise NotImplementedError("ETAPA 6.2: criar_coordenador")
+    return Agent(
+        name="Coordenador",
+        instructions=(
+            "Você é o Coordenador da análise de RH. Avalie o pedido do servidor e decida quais especialistas "
+            "consultar. "
+            "REGRAS DE OBRIGATORIEDADE: "
+            "1. Se o pedido envolver **venda de férias** ou **diárias**, você DEVE obrigatoriamente acionar a ferramenta `parecer_financeiro`. "
+            "2. Para abonos simples, o financeiro não é necessário. "
+            "Acione os especialistas necessários através das ferramentas disponíveis (`parecer_normas`, `parecer_escala`, `parecer_financeiro`) "
+            "e consolide um parecer unificado resumindo a análise técnica de cada um."
+        ),
+        tools=[
+            criar_normas().as_tool(
+                tool_name="parecer_normas", 
+                tool_description="Consulta o parecer detalhado das normas aplicáveis ao pedido.", 
+                hooks=hooks,
+                failure_error_function=None
+            ),
+            criar_escala().as_tool(
+                tool_name="parecer_escala", 
+                tool_description="Consulta o parecer de escala e conflitos de afastamento da equipe.", 
+                hooks=hooks,
+                failure_error_function=None
+            ),
+            criar_financeiro().as_tool(
+                tool_name="parecer_financeiro", 
+                tool_description="Consulta o parecer financeiro (cálculo de venda de férias ou diárias). OBRIGATÓRIO para férias com venda e diárias.", 
+                hooks=hooks,
+                failure_error_function=None
+            ),
+            *(tools_extras or [])
+        ],
+        model_settings=CONFIG
+    )
