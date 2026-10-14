@@ -33,7 +33,42 @@ def medido(nome: str, no):
     #      e, se o nó devolveu, "tokens" e "fonte_feriados";
     #   3. devolve o MESMO dicionário que o nó devolveu.
     #   Use @functools.wraps(no) para o nome do nó continuar o mesmo.
-    return no  # pass-through: troque pelo wrapper
+    @functools.wraps(no)
+    def wrapper(estado):
+        inicio = time.perf_counter()
+
+        resultado = no(estado)
+
+        duracao = time.perf_counter() - inicio
+
+        registro = {
+            "thread_id": estado.get("thread_id"),
+            "no": nome,
+            "segundos": round(duracao, 4),
+            "tokens": resultado.get("_tokens", 0)
+        }
+
+        if isinstance(resultado, dict):
+            if "tokens" in resultado:
+                registro["tokens"] = resultado["tokens"]
+
+            if "fonte_feriados" in resultado:
+                registro["fonte_feriados"] = resultado["fonte_feriados"]
+
+            if "cambio_api" in resultado:
+                registro["cambio_api"] = resultado["cambio_api"]
+
+        ARQUIVO_METRICAS.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(ARQUIVO_METRICAS, "a", encoding="utf-8") as fp:
+            fp.write(
+                json.dumps(registro, ensure_ascii=False)
+                + "\n"
+            )
+
+        return resultado
+
+    return wrapper
 
 
 def resumo(thread_id: str) -> dict:

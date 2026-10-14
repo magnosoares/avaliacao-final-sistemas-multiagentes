@@ -106,13 +106,29 @@ class Estado(TypedDict, total=False):
     aprovador: str
     protocolo: str
     resultado: str                # o desfecho, para a tabela da Etapa 11
+    _tokens: Annotated[int, operator.add]
     caminho: Annotated[list[str], operator.add]   # cada nó só ACRESCENTA o próprio nome
 
+def obter_tokens(resultado) -> int:
+    """
+    Extrai os tokens consumidos por um RunResult do Agents SDK.
+    """
+    try:
+        return resultado.context_wrapper.usage.total_tokens
+    except Exception:
+        pass
+
+    try:
+        return resultado.usage.total_tokens
+    except Exception:
+        pass
+
+    return 0
 
 # ------------------------------------------------------------------ nós PRONTOS
 def receber(estado: Estado) -> dict:
     return {"texto": estado["texto"].strip(), "tentativas": 0, "rejeicoes": 0, "violacoes": [],
-            "erro_validacao": "", "feedback_chefia": "", "caminho": ["receber"]}
+            "erro_validacao": "", "feedback_chefia": "", "_tokens": 0, "caminho": ["receber"]}
 
 
 def recusar(estado: Estado) -> dict:
@@ -271,6 +287,7 @@ def no_normas(estado: Estado) -> dict:
 
     return {
         "parecer_normas": res.final_output,
+        "_tokens": obter_tokens(res),
         "caminho": ["normas"]
     }
 
@@ -286,6 +303,7 @@ def no_escala(estado: Estado) -> dict:
 
     return {
         "parecer_escala": res.final_output,
+        "_tokens": obter_tokens(res),
         "caminho": ["escala"]
     }
 
@@ -298,6 +316,7 @@ def no_financeiro(estado: Estado) -> dict:
     if pedido.get("tipo") == "abono":
         return {
             "parecer_financeiro": "Não se aplica a abonos.",
+            "_tokens": 0,
             "caminho": ["financeiro"]
         }
 
@@ -310,6 +329,7 @@ def no_financeiro(estado: Estado) -> dict:
 
     return {
         "parecer_financeiro": res.final_output,
+        "_tokens": obter_tokens(res),
         "caminho": ["financeiro"]
     }
 
@@ -353,6 +373,7 @@ def redigir_despacho(estado: Estado) -> dict:
 
     return {
         "despacho": res.final_output,
+        "_tokens": obter_tokens(res),
         "caminho": ["redigir_despacho"]
     }
 
