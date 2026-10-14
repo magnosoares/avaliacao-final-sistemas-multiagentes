@@ -57,65 +57,55 @@ class TipoDestino(str, Enum):
 
 
 class Pedido(BaseModel):
+    # ETAPA 2.1 -- complete os campos. O primeiro já está pronto como modelo.
+    #   matricula: str | None          (4 dígitos; None se o servidor não informou)
+    #   data_inicio: str | None        (AAAA-MM-DD)
+    #   data_fim: str | None           (AAAA-MM-DD; no abono, igual à data_inicio)
+    #   dias_vendidos: int             (0 a 10; abono pecuniário, regra N2 -- use Field(default=0, ge=0, le=10, ...))
+    #   destino: str | None            (só para diária: a cidade)
+    #   tipo_destino: TipoDestino | None
+    #   justificativa: str             (resumo do motivo, sem dados de saúde)
+    #   Escreva a DESCRIPTION de cada um: é a "instrução" que o LLM lê para preencher o campo.
+    #   Referência: aula2/agente_output2.py (Ocorrencia, Envolvido, PapelEnvolvido)
     tipo: TipoPedido = Field(description=(
         "Tipo do pedido: 'ferias' (descanso anual, pode incluir venda de dias), 'abono' (folga de 1 dia útil), "
         "'diaria' (viagem a serviço), 'licenca_saude' (afastamento por doença) ou 'outro'."))
-    matricula: str | None = Field(default=None, description="Matrícula do servidor (4 dígitos), ou null se não informado.")
-    
-    # Restrição reforçada para evitar que o modelo use o mês inteiro como data exata
-    data_inicio: str | None = Field(
-        default=None, 
-        description="Data de início exata no formato AAAA-MM-DD. Se o usuário informar apenas o mês/ano (ex: 'agosto de 2027'), DEIXE COMO NULL. Não invente o dia 01."
-    )
-    data_fim: str | None = Field(
-        default=None, 
-        description="Data de fim exata no formato AAAA-MM-DD. Se o usuário informar apenas o mês/ano, DEIXE COMO NULL."
-    )
-    
-    dias_vendidos: int = Field(default=0, ge=0, le=10, description="Número de dias vendidos (0 a 10), só se o servidor pedir explicitamente; caso contrário, 0.")
-    destino: str | None = Field(default=None, description="Cidade de destino da viagem, se o pedido for de diária; caso contrário, null.")
-    tipo_destino: TipoDestino | None = Field(default=None, description="Tipo de destino da viagem: 'capital', 'interior' ou 'exterior', se o pedido for de diária; caso contrário, null.")
-    justificativa: str = Field(default="", description="Resumo do motivo do pedido, sem incluir dados de saúde ou informações sensíveis; se não houver justificativa, deixar em branco.")
+
 
 def criar_extrator(instrucoes: str, input_guardrails: list | None = None) -> Agent:
     # ETAPA 2.2 -- devolva Agent(name="Extrator", instructions=instrucoes, output_type=Pedido,
     #   input_guardrails=input_guardrails or [])
     #   (os guardrails só entram na Etapa 3; até lá, a lista fica vazia)
-    return Agent(
-        name="Extrator",
-        instructions=instrucoes,
-        output_type=Pedido,
-        input_guardrails=input_guardrails or []
-    )
+    raise NotImplementedError("ETAPA 2.2: criar_extrator")
 
 
 INSTRUCOES_EXTRATOR = (
-    f"Hoje é {texto_hoje()}. "
+    f"Hoje é {texto_hoje()}. "  # (PRONTO) a data real: o modelo não tem relógio (aula3/agente_retry.py)
     "Você extrai pedidos de servidores para o RH (férias, abono ou diária). "
-    "REGRAS CRÍTICAS DE EXTRAÇÃO:\n"
-    "1. Só preencha `data_inicio` e `data_fim` se o usuário fornecer o **dia exato** (ex: 'dia 12', '09/04/2027').\n"
-    "2. Se o usuário citar apenas um mês ou período genérico (ex: 'em agosto de 2027'), **os campos de data DEVEM ser null**. Nunca deduza o primeiro ou o último dia do mês.\n"
-    "3. Se faltarem dados essenciais (matrícula ou datas exatas), deixe-os como null."
+    "TODO ETAPA 2.2: complete -- datas no formato AAAA-MM-DD, não invente o que não foi dito (use null), "
+    "dias vendidos só se o servidor pedir explicitamente."
 )
 
 
 def extrair(texto: str) -> Pedido:
     # ETAPA 2.3 -- rode criar_extrator(INSTRUCOES_EXTRATOR) com Runner.run_sync e devolva final_output
     #   (é um objeto Pedido, não texto!)
-    extrator = criar_extrator(INSTRUCOES_EXTRATOR)
-    resultado = Runner.run_sync(extrator, texto)
-    return resultado.final_output
+    raise NotImplementedError("ETAPA 2.3: extrair")
 
 
 # ------------------------------------------------------------------ 🆕 A: votação (OPCIONAL, bônus)
 # Para ligar no grafo depois de pronto: USAR_VOTACAO = True em etapa07_grafo.py.
 # 🆕 A.1 -- três instruções LIGEIRAMENTE diferentes para a MESMA tarefa (comece cada uma com f"Hoje é {texto_hoje()}. ")
 #   ex.: um extrator literal; um que confere as datas contra o calendário; um que "pensa como o RH".
-INSTRUCOES_VOTANTES: list[str] = [
-    f"Hoje é {texto_hoje()}. Você extrai pedidos de servidores para o RH (férias, abono ou diária). ",
-    f"Hoje é {texto_hoje()}. Você é um especialista em processos do RH. Extraia pedidos de servidores (férias, abono ou diária) e verifique se as datas são válidas. ",
-    f"Hoje é {texto_hoje()}. Você é um assistente do RH. Analise o pedido do servidor (férias, abono ou diária) e extraia os dados relevantes, garantindo que as informações estejam corretas e completas. "
-]
+INSTRUCOES_VOTANTES: list[str] = []  # TODO 🆕 A.1: preencha com 3 strings
+
+
+async def extrair_com_votacao(texto: str) -> tuple[Pedido, bool, list[Pedido]]:
+    # 🆕 A.2 -- crie os 3 extratores e rode-os AO MESMO TEMPO:
+    #     resultados = await asyncio.gather(*(Runner.run(e, texto) for e in extratores))
+    #   depois chame votar([r.final_output for r in resultados]) e devolva (pedido_final, divergencia, votos).
+    #   Conceito: aula7/exemplos/08_paralelismo/main.py (fan-out/fan-in), aqui em asyncio, sem grafo.
+    raise NotImplementedError("🆕 A.2: extrair_com_votacao")
 
 
 def votar(votos: list[Pedido]) -> tuple[Pedido, bool]:
@@ -128,17 +118,6 @@ def votar(votos: list[Pedido]) -> tuple[Pedido, bool]:
         if quantos < 2 and campo in ("tipo", "data_inicio", "data_fim"):
             divergencia = True
     return votos[0].model_copy(update=decidido), divergencia
-
-
-async def extrair_com_votacao(texto: str) -> tuple[Pedido, bool, list[Pedido]]:
-    # 🆕 A.2 -- crie os 3 extratores e rode-os AO MESMO TEMPO:
-    #     resultados = await asyncio.gather(*(Runner.run(e, texto) for e in extratores))
-    #   depois chame votar([r.final_output for r in resultados]) e devolva (pedido_final, divergencia, votos).
-    #   Conceito: aula7/exemplos/08_paralelismo/main.py (fan-out/fan-in), aqui em asyncio, sem grafo.
-    resultados = await asyncio.gather(*(Runner.run(criar_extrator(instrucao), texto) for instrucao in INSTRUCOES_VOTANTES))
-    votos = [r.final_output for r in resultados]
-    pedido_final, divergencia = votar(votos)
-    return pedido_final, divergencia, votos
 
 
 def _demo_extracao() -> None:

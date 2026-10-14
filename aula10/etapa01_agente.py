@@ -35,9 +35,8 @@ MODELO = configurar()  # LLM REAL: PROVEDOR no .env (openai ou ollama)
 #   Referência: exercicios_resolvidos/aula4/ex10_function_tool.py (consultar_protocolo)
 @function_tool
 def consultar_servidor(matricula: str) -> str:
-    """Consulta dados de um servidor público pela matrícula."""
-    print("[tool] consultar_servidor", matricula)
-    return json.dumps(servidor_publico(matricula), ensure_ascii=False)
+    """TODO: escreva a docstring (o que a tool faz e o que é o argumento)."""
+    raise NotImplementedError("ETAPA 1.1: consultar_servidor")
 
 
 def criar_atendente() -> Agent:
@@ -46,13 +45,7 @@ def criar_atendente() -> Agent:
     #   Instruções: atende servidores, responde em português e de forma breve, usa a tool quando a pergunta
     #   for sobre os dados de UM servidor, e não inventa saldo de cabeça.
     #   Referência: aula1/segundo_agente.py
-    return Agent(
-        name="AtendenteRH",
-        instructions="Atende servidores, responde em português e de forma breve, "
-                     "usa a tool quando a pergunta for sobre os dados de UM servidor, "
-                     "e não inventa saldo de cabeça.",
-        tools=[consultar_servidor],
-    )
+    raise NotImplementedError("ETAPA 1.2: criar_atendente")
 
 
 def main() -> None:
@@ -60,10 +53,7 @@ def main() -> None:
     #   1) "Quantos dias de férias a matrícula 1002 ainda tem?"   (precisa da tool)
     #   2) "O que é abono pecuniário?"                            (não precisa)
     #   Referência: aula8/exemplos/02_agente_tool/main.py
-    resultado1 = Runner.run_sync(criar_atendente(), "Quantos dias de férias a matrícula 1002 ainda tem?")
-    print(resultado1.final_output)
-    resultado2 = Runner.run_sync(criar_atendente(), "O que é abono pecuniário?")
-    print(resultado2.final_output)
+    raise NotImplementedError("ETAPA 1.3: main")
 
 
 if __name__ == "__main__":

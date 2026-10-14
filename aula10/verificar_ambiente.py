@@ -76,7 +76,7 @@ if not (PASTA / ".env").exists():
 load_dotenv(PASTA / ".env")
 provedor = os.getenv("PROVEDOR", "openai").strip().lower()
 print(f"  PROVEDOR={provedor}")
-if provedor == "openai" or provedor == "openrouter":
+if provedor == "openai":
     chave = os.getenv("OPENAI_API_KEY", "")
     if chave.startswith("sk-") and len(chave) > 20:
         ok(f"OPENAI_API_KEY preenchida (termina em ...{chave[-4:]})")
