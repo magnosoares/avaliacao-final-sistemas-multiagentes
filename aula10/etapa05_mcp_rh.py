@@ -187,7 +187,27 @@ def _auditar(protocolo: str, decisao_acesso: str, motivo: str, parametros: dict)
     #   motivo e os parâmetros (SEM o token e SEM o despacho inteiro).
     #   Referência: aula5/exemplos/10_seguranca/server_seguro.py (_registrar_auditoria), aqui em JSON Lines.
     #   Até fazer a 9.3, este pass deixa a escrita funcionar sem auditoria.
-    pass
+    registro = {
+        "quando": datetime.now().isoformat(),
+        "thread_id": parametros.get("thread_id", ""),
+        "quem": parametros.get("aprovador", "sistema"),
+        "tool": "registrar_decisao",
+        "protocolo": protocolo,
+        "decisao_acesso": decisao_acesso,  # "ALLOW" ou "DENY"
+        "motivo": motivo,
+        "parametros": {
+            "matricula": parametros.get("matricula"),
+            "tipo": parametros.get("tipo"),
+            "inicio": parametros.get("inicio"),
+            "fim": parametros.get("fim"),
+            "decisao": parametros.get("decisao"),
+            "aprovador": parametros.get("aprovador")
+        }
+    }
+    # Garante que a pasta de saídas existe e adiciona a linha no arquivo .jsonl
+    SAIDAS.mkdir(parents=True, exist_ok=True)
+    with open(ARQUIVO_AUDITORIA, "a", encoding="utf-8") as f:
+        f.write(json.dumps(registro, ensure_ascii=False) + "\n")
 
 
 @mcp.tool()
@@ -228,6 +248,26 @@ def registrar_decisao(protocolo: str, matricula: str, tipo: str, inicio: str, fi
     #   - decisao == "deferido" e tipo in TIPOS_COM_CHEFIA e aprovador != chefia do servidor no cadastro.
     #   Devolva {"sucesso": False, "erro": "..."} -- quem nega é o SERVER, não o agente.
     #   Referência: aula5/exemplos/10_seguranca/server_seguro.py (alterar_status_ocorrencia)
+    if not token or token != TOKEN_REGISTRO:
+        _auditar(protocolo, "DENY", "token inválido", parametros)
+        return {"sucesso": False, "erro": "token inválido"}
+    
+    if decisao not in DECISOES_VALIDAS:
+        _auditar(protocolo, "DENY", "decisão inválida", parametros)
+        return {"sucesso": False, "erro": "decisão inválida"}
+    
+    if aprovador == matricula:
+        _auditar(protocolo, "DENY", "autoaprovação (N8)", parametros)
+        return {"sucesso": False, "erro": "autoaprovação (N8)"}
+
+    # Validação N8: Se for deferido e exigir alçada, o aprovador DEVE ser a chefia cadastrada
+    if decisao == "deferido" and tipo in TIPOS_COM_CHEFIA:
+        servidor = servidor_publico(matricula)
+        chefia_correta = servidor.get("chefia") if servidor else None
+        if aprovador != chefia_correta:
+            motivo_erro = f"aprovador não é a chefia {chefia_correta} (N8)"
+            _auditar(protocolo, "DENY", motivo_erro, parametros)
+            return {"sucesso": False, "erro": motivo_erro}
 
     # ETAPA 5.2 -- grave em ARQUIVO_REGISTROS (use _ler_registros/_gravar_registros).
     #   Protocolo já existe -> NÃO grave de novo; devolva {"sucesso": True, "duplicado": True, ...}.
@@ -239,6 +279,8 @@ def registrar_decisao(protocolo: str, matricula: str, tipo: str, inicio: str, fi
     registros = _ler_registros()
 
     if protocolo in registros:
+        # Protocolo já existe: não duplica, apenas avisa que já foi gravado
+        _auditar(protocolo, "ALLOW", "duplicado", parametros) # (Usado na Etapa 9.3)
         return {
             "sucesso": True, 
             "duplicado": True, 
@@ -254,6 +296,8 @@ def registrar_decisao(protocolo: str, matricula: str, tipo: str, inicio: str, fi
     
     registros[protocolo] = registro_novo
     _gravar_registros(registros)
+
+    _auditar(protocolo, "ALLOW", "gravado", parametros) # (Usado na Etapa 9.3)
     
     return {
         "sucesso": True, 

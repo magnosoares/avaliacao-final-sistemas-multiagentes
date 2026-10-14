@@ -463,6 +463,13 @@ def registrar(estado: Estado) -> dict:
     despacho = estado.get("despacho", "")
     rejeicoes = estado.get("rejeicoes", 0)
 
+    
+    # ------------------------------------------------------------------
+    # ETAPA 9.4: Guardrail de Saída (N10 - sem CPF ou CID no despacho)
+    # ------------------------------------------------------------------
+    if GUARDRAIL_LIGADO and encontrar_dado_sensivel(despacho):
+        return {"resultado": "bloqueado_na_saida", "caminho": ["registrar"]}
+
     # Se atingiu o limite de rejeições da chefia (Etapa 8.3), ajusta a decisão
     decisao = "indeferido_pela_chefia" if rejeicoes >= MAX_REJEICOES else estado.get("decisao", "deferido")
     
@@ -502,7 +509,14 @@ def registrar(estado: Estado) -> dict:
     if resposta.get("sucesso"):
         resultado = "duplicado" if resposta.get("duplicado") else "registrado"
     else:
-        resultado = f"negado_pelo_server: {resposta.get('erro', 'erro desconhecido')}"
+        erro_msg = resposta.get('erro', 'erro desconhecido')
+        resultado = f"negado_pelo_server: {erro_msg}"
+        # Atualiza o despacho no estado para refletir que a operação foi bloqueada por segurança
+        return {
+            "protocolo": protocolo,
+            "resultado": resultado,
+            "caminho": ["registrar"]
+        }
 
     return {
         "protocolo": protocolo,
@@ -648,6 +662,7 @@ def retomar(app, thread_id: str, resposta: str, quem: str) -> None:
         
     saida = app.invoke(Command(resume=valor), config_de(thread_id))
     mostrar(app, thread_id, saida)
+
 
 
 def main() -> None:
