@@ -96,7 +96,7 @@ class Estado(TypedDict, total=False):
     parecer_normas: str
     parecer_escala: str
     parecer_financeiro: str
-    violacoes: list[str]          # ETAPA 7.1: troque por Annotated[list[str], operator.add] (por quê? leia 7.3)
+    violacoes: Annotated[list[str], operator.add]
     decisao: str                  # "deferido" | "indeferido" | "indeferido_pela_chefia"
     despacho: str
     tentativas: int
@@ -135,13 +135,32 @@ def proteger_entrada(estado: Estado) -> dict:
     #   Guarde "nota_escopo" no estado. Sempre devolva "caminho": ["proteger_entrada"].
     # 🆕 C.1 (opcional) -- com USAR_TRIAGEM_HUMANA, troque o LIMIAR único por DUAS faixas: < LIMIAR_OK segue;
     #   >= LIMIAR_BLOQUEIO bloqueia; no meio, bloqueado=False com a nota no estado: o roteador manda para triagem_humana.
-    raise NotImplementedError("ETAPA 7.2: proteger_entrada")
+    texto = estado["texto"]
+    if GUARDRAIL_LIGADO:
+        dado_sensivel = encontrar_dado_sensivel(texto)
+        if dado_sensivel:
+            return {"bloqueado": True, "motivo_bloqueio": MENSAGENS.get(dado_sensivel, "Dado sensível bloqueado."), "caminho": ["proteger_entrada"]}
+        nota, _ = nota_escopo(texto)
+        if USAR_TRIAGEM_HUMANA:
+            if nota >= LIMIAR_BLOQUEIO:
+                return {"bloqueado": True, "motivo_bloqueio": MENSAGENS["fora_do_escopo"], "nota_escopo": nota, "caminho": ["proteger_entrada"]}
+            elif nota >= LIMIAR_OK:
+                return {"bloqueado": False, "nota_escopo": nota, "caminho": ["proteger_entrada"]}
+        else:
+            if nota >= LIMIAR:
+                return {"bloqueado": True, "motivo_bloqueio": MENSAGENS["fora_do_escopo"], "nota_escopo": nota, "caminho": ["proteger_entrada"]}
+
+    return {"bloqueado": False, "caminho": ["proteger_entrada"]}
 
 
 def rotear_entrada(estado: Estado) -> str:
     # ETAPA 7.2 -- "bloqueado" ou "ok".
     #   🆕 C.1 (opcional) -- com USAR_TRIAGEM_HUMANA, também "duvida" (nota entre LIMIAR_OK e LIMIAR_BLOQUEIO)
-    raise NotImplementedError("ETAPA 7.2: rotear_entrada")
+    if estado.get("bloqueado"):
+        return "bloqueado"
+    if USAR_TRIAGEM_HUMANA and LIMIAR_OK <= estado.get("nota_escopo", 0) < LIMIAR_BLOQUEIO:
+        return "duvida"
+    return "ok"
 
 
 def triagem_humana(estado: Estado) -> dict:
@@ -151,35 +170,67 @@ def triagem_humana(estado: Estado) -> dict:
     #   Se segue, ANEXE a orientação ao texto (ex.: "[RH: tratar como abono]") para o extrator usar.
     #   Lembre: na retomada este nó roda DE NOVO desde o início -- nada com efeito colateral antes do interrupt().
     #   Conceito: aula7/exemplos/06_human_in_the_loop/main.py (lá o humano aprova a SAÍDA; aqui decide a ENTRADA)
-    raise NotImplementedError("🆕 C.2: triagem_humana")
+    resposta = interrupt({
+        "pergunta": "Este texto deve seguir como pedido ao RH?",
+        "texto": estado["texto"],
+        "nota": estado.get("nota_escopo"),
+        "quem_decide": "atendente do RH"
+    })
+    orientacao = resposta.get("orientacao", "")
+    texto_novo = f"{estado['texto']} [RH: {orientacao}]" if orientacao else estado["texto"]
+    return {"triagem": resposta, "texto": texto_novo, "caminho": ["triagem_humana"]}
 
 
 def rotear_triagem(estado: Estado) -> str:
     # 🆕 C.2 -- "segue" ou "recusa"
-    raise NotImplementedError("🆕 C.2: rotear_triagem")
+    triagem = estado.get("triagem", {})
+    return "segue" if triagem.get("segue") else "recusa"
 
 
 def no_extrair(estado: Estado) -> dict:
     # ETAPA 7.2 -- pedido = extrair(texto); divergencia = False
     #   🆕 A (opcional) -- se USAR_VOTACAO: pedido, divergencia, votos = asyncio.run(extrair_com_votacao(texto))
     #   Devolva {"pedido": pedido.model_dump(mode="json"), "divergencia": ..., "caminho": ["extrair"]}
-    raise NotImplementedError("ETAPA 7.2: no_extrair")
+    texto = estado["texto"]
+    if USAR_VOTACAO:
+        pedido, divergencia, _ = asyncio.run(extrair_com_votacao(texto))
+        return {"pedido": pedido.model_dump(mode="json"), "divergencia": divergencia, "caminho": ["extrair"]}
+    else:
+        pedido = extrair(texto)
+        return {"pedido": pedido.model_dump(mode="json"), "divergencia": False, "caminho": ["extrair"]}
+
 
 
 def rotear_extracao(estado: Estado) -> str:
     # ETAPA 7.2 -- "incompleto" se divergencia, ou sem matrícula, ou sem data_inicio/data_fim; senão "ok".
     #   (pedido de licença de saúde também não segue: N9 -- mande para "incompleto" ou crie um nó próprio)
-    raise NotImplementedError("ETAPA 7.2: rotear_extracao")
+    pedido = estado.get("pedido", {})
+    if ( estado.get("divergencia") or 
+        not pedido.get("matricula") or 
+        not pedido.get("data_inicio") or not pedido.get("data_fim") or
+        pedido.get("tipo") == "licenca_saude"
+    ):
+        return "incompleto"
+
+    return "ok"
 
 
 def identificar_servidor(estado: Estado) -> dict:
     # ETAPA 7.2 -- servidor = chamar_mcp("consultar_servidor", {"matricula": ...}) -> {"servidor": servidor, ...}
-    raise NotImplementedError("ETAPA 7.2: identificar_servidor")
+    pedido = estado.get("pedido", {})
+    servidor = chamar_mcp("consultar_servidor", {"matricula": pedido["matricula"]})
+
+    return {"servidor": servidor, "caminho": ["identificar_servidor"]}
 
 
 def rotear_servidor(estado: Estado) -> str:
     # ETAPA 7.2 -- "nao_encontrado" se o MCP devolveu {"erro": ...}; senão "ok"
-    raise NotImplementedError("ETAPA 7.2: rotear_servidor")
+    servidor = estado.get("servidor", {})
+    
+    if "erro" in servidor:
+        return "nao_encontrado"
+    
+    return "ok"
 
 
 def calcular_periodo(estado: Estado) -> dict:

@@ -73,7 +73,8 @@ def consultar_servidor(matricula: str) -> dict:
     """
     servidor = servidor_publico(matricula)
     if not servidor:
-        raise ValueError(f"Matrícula {matricula} não encontrada.")
+        return {"erro": f"Matrícula {matricula} não encontrada."}
+    
     return servidor
 
 
@@ -87,23 +88,17 @@ def consultar_escala(equipe: str, inicio: str, fim: str) -> dict:
         fim: Data de fim do período no formato AAAA-MM-DD.
 
     Returns:
-        Um dicionário contendo o status (erro ou sucesso na consulta), o tamanho da equipe, o limite de afastados
-        e a lista de afastamentos no período.
+        Um dicionário contendo o o tamanho da equipe, o limite de afastados
+        e a lista de afastamentos no período, ou o atributo erro com o
+        motivo do erro na consulta.
     """
     escala = escala_da_equipe(equipe, inicio, fim)
     
     # Se o dados_rh.py retornar um erro estruturado (ex: equipe não encontrada)
     if "erro" in escala:
-        return {
-            "status": "erro",
-            "motivo": escala["erro"],
-            "tamanho_equipe": 0,
-            "limite_afastados": 0,
-            "afastamentos": []
-        }
+        return { "erro": escala["erro"] }
 
     return {
-        "status": "sucesso",
         "tamanho_equipe": escala["tamanho_equipe"],
         "limite_afastados": escala["limite_afastados"],
         "afastamentos": escala["afastamentos"]
@@ -118,23 +113,18 @@ def consultar_normas(tema: str) -> dict:
         tema: Tema da norma a ser consultada (ex: 'ferias', 'abono', 'diaria', 'escala').
 
     Returns:
-        Um dicionário contendo o status (erro ou sucesso na consulta), o tema consultado e a lista de regras encontradas
-        (cada regra com código, tema e descrição).
+        Um dicionário contendo o tema consultado e a lista de regras encontradas
+        (cada regra com código, tema e descrição), ou o atributo erro com o
+        motivo do erro na consulta.
     """
     # Devolva {"tema": tema, "regras": normas(tema)} (normas() está em dados_rh.py).
     # Por que um dict e não a lista direto? Uma tool MCP que devolve LISTA manda cada item como um conteúdo separado:
     # quem chama não distingue "lista com 1 regra" de "1 dict". Neste server, TODA tool devolve UM dict.
     norma = normas(tema)
     if not norma:
-        return {
-            "status": "erro",
-            "motivo": f"Tema {tema} não encontrado nas normas.",
-            "tema": tema,
-            "regras": []
-        }
+        return { "erro": f"Tema {tema} não encontrado nas normas." }
 
     return {
-        "status": "sucesso",
         "tema": tema,
         "regras": normas(tema)
     }
@@ -148,22 +138,18 @@ def tabela_diarias(tipo_destino: str) -> dict:
         tipo_destino: O tipo de destino da viagem ('capital', 'interior' ou 'exterior').
 
     Returns:
-        Um dicionário contendo o status (erro ou sucesso na consulta), o tipo de destino, a moeda utilizada (BRL ou USD)
-        e o valor da diária correspondente.
+        Um dicionário contendo o tipo de destino, a moeda utilizada (BRL ou USD)
+        e o valor da diária correspondente, ou o atributo erro com o
+        motivo do erro na consulta.
     """
     # Tratamento para remover espaços extras e caracteres de quebra de linha (\r ou \n)
     destino_limpo = tipo_destino.strip()
     res = diaria(destino_limpo)
     
     if "erro" in res:
-        return {
-            "status": "erro",
-            "motivo": res["erro"],
-            "tipo_destino": tipo_destino
-        }
+        return { "erro": res["erro"] }
 
     return {
-        "status": "sucesso",
         "tipo_destino": tipo_destino,
         "moeda": res["moeda"],
         "valor_diaria": res["valor_diaria"]
@@ -178,21 +164,17 @@ def consultar_remuneracao(matricula: str) -> dict:
         matricula: Número de matrícula do servidor (4 dígitos).
 
     Returns:
-        Um dicionário contendo o status (erro ou sucesso na consulta), a matrícula e o valor do salário-base do servidor.
-        Dado restrito, destinado exclusivamente ao uso do agente Financeiro.
+        Um dicionário contendo a matrícula e o valor do salário-base do servidor.
+        Dado restrito, destinado exclusivamente ao uso do agente Financeiro, ou o atributo erro com o
+        motivo do erro na consulta.
     """
     # Devolva remuneracao(matricula) (dados_rh.py).
     retorno = remuneracao(matricula)
 
     if retorno is None:
-        return {
-            "status": "erro",
-            "motivo": f"Matrícula {matricula} não encontrada ou sem remuneração disponível.",
-            "matricula": matricula
-        }
+        return { "erro": f"Matrícula {matricula} não encontrada ou sem remuneração disponível." }
 
     return {
-        "status": "sucesso",
         "matricula": matricula,
         "salario_base": retorno["salario_base"]
     }
